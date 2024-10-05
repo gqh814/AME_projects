@@ -1,3 +1,4 @@
+import pandas as pd
 import numpy as np
 from numpy import linalg as la
 from tabulate import tabulate
@@ -47,7 +48,6 @@ def estimate(
     results = [b_hat, se, sigma2, t_values, R2, cov, u_hat, robust]
     return dict(zip(names, results))
 
-    
 def est_ols( y: np.ndarray, x: np.ndarray) -> np.ndarray:
     """Estimates y on x by ordinary least squares, returns coefficents
 
@@ -163,6 +163,97 @@ def wald_test(b_hat: np.ndarray, cov_mat: np.ndarray, R: np.ndarray, r: np.ndarr
     
     
     return W_stat, p_value
+
+def transform_output(
+        labels: tuple,
+        results: dict,
+        headers=["coef", "std err", "t-values", "p-values", "conf-int1", "conf-int2", "significant"],
+        alpha:float=0.05,
+        **kwargs
+):
+    """ Transform the output of the OLS regression into a pandas dataframe
+            Args:
+                labels (tuple): Tuple with first a label for y, and then a list of labels for x.
+                results (dict): The results from a regression. Needs to be in a dictionary with at least the following keys:
+                    'b_hat', 'se', 't_values', 'R2', 'sigma2'   
+                headers (list, optional): Column headers. Defaults to 
+                    ["coef", "std err", "t-values", "p-values", "conf-int1", "conf-int2", "significant"]
+                alpha (float, optional): Significance level for the p-values. Defaults to 0.05.
+            Returns:
+                pd.DataFrame: Returns a pandas dataframe with the results of the regression.
+    """
+    # unpack the labels
+    label_y, label_x = labels
+    coefs = results['b_hat'].flatten()
+    std_err = results['se'].flatten()
+    t_values = results['t_values'].flatten()
+    
+    # calculate p-values
+    p_values = (1 - norm.cdf(np.abs(t_values))) * 2
+    # calculate confidence intervals
+    conf_int_low = coefs - abs(norm.ppf(alpha/2)) * std_err
+    conf_int_up = coefs + abs(norm.ppf(alpha/2)) * std_err
+
+    # create the output dataframe
+    output = (pd.DataFrame(index=label_x,
+                            data=({
+                                'coef':coefs,
+                                'std err': std_err,
+                                't-values': t_values,
+                                'p-values': p_values,
+                                'conf-int1': conf_int_low,
+                                'conf-int2': conf_int_up,
+                                'significant': ['*' if val < alpha else '' for val in p_values]
+                                })))
+    # select the columns based on the headers
+    output = output.loc[:,headers]
+
+    return output
+
+def reg_to_latex(
+        filename, 
+        output:pd.DataFrame,
+        r2:float, 
+        caption:str='',
+        label:str='tab: x1y2z3'
+        ):
+    """ 
+    Write multiple regression outputs to a LaTeX table
+    
+        Args:
+            outputs (list): list of outputs from the regression
+            names (list): list of names for the outputs
+        Returns:
+            None
+        """
+    if filename[-4:] != '.tex':
+        filename += '.tex'
+    
+    headers = ['coef', 'std err', 't-values', 'p-values']
+    columns = 'c | ' + 'c' * len(headers)
+    
+    with open(filename, 'w') as f:
+        f.write('\\begin{table}[H]\n')
+        f.write('\\centering\n')
+
+        f.write(f'\\begin{{tabular}}{{{columns}}}\n')
+        f.write(' & ' + ' & '.join([f'\\textbf{{{head}}}' for head in headers]) + ' \\\\\n')  
+        f.write('\\toprule \\\n')
+
+        for idx, row in output.iterrows():
+            coefs = f"${row['coef']:.2f}$"
+            std_devs = f"${row['std err']:.2f}$"
+            t_values = f"${row['t-values']:.2f}$"
+            p_values = f"${row['p-values']:.2f}$"
+            f.write(f'{idx:10} &  {coefs} & {std_devs} & {t_values} & {p_values}  \\\\\n')
+
+        f.write('\midrule \n')
+        f.write(f'$R^2$ & {r2:.2f} {"&".join(["" for _ in range(len(headers)-1)])} \\\\\n')
+        f.write('\\bottomrule\n')
+        f.write('\end{tabular}\n')
+        f.write(f'\caption{{{caption}}}\n')
+        f.write(f'\label{{{label}}}\n')
+        f.write('\end{table}')
 
 
 def print_table(
