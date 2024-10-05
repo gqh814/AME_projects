@@ -118,7 +118,6 @@ def variance(
         bread = la.inv(x.T @ x)
 
         cov = bread @ meat @ bread # Sandwich formula
-
     else:  
         cov = sigma2 * la.inv(x.T @ x) # Standard formula
 
