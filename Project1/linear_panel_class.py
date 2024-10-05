@@ -221,7 +221,7 @@ def print_table(
 
 def strict_exogeneity_test(y:np.array, X:np.array, 
                            i_index:int, N:int, T:int, 
-                           with_in_transformation:bool=False,
+                           with_in_trans:bool=False,
                            robust:bool=True):
     """
     Runs the regression of y on X but with the i-th column of X leaded by one time period.
@@ -241,10 +241,10 @@ def strict_exogeneity_test(y:np.array, X:np.array,
     T_lead = T - 1
 
     # Lead transformation matrix and drops the first observation of each individual
-    F_T = np.hstack((np.zeros((T-1,1)),np.identity(T-1))) 
+    F_T = np.hstack((np.zeros((T_lead,1)),np.identity(T_lead))) 
 
     # Identity matrix with one less column and row due to the lead transformation
-    I_T = np.hstack((np.identity(T-1),np.zeros((T-1,1)))) 
+    I_T = np.hstack((np.identity(T_lead),np.zeros((T_lead,1)))) 
 
     # create exogenous variables: one leaded of the x-variable and all exogenous variables
     x_lead = perm(F_T, X[:, i_index].reshape(-1, 1))
@@ -256,8 +256,8 @@ def strict_exogeneity_test(y:np.array, X:np.array,
     # remove one time period from the dependent variable
     y_exo = perm(I_T, y)
 
-    if with_in_transformation: # Within transform the data
-        Q_T = demeaning_matrix(T)
+    if with_in_trans: # Within transform the data
+        Q_T = demeaning_matrix(T_lead)
         yw_exo = perm(Q_T, y_exo)
         xw_exo = perm(Q_T, x_exo)
     else: 
