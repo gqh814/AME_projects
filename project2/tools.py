@@ -309,6 +309,41 @@ def print_table(
         print(f'\u03bb = {_lambda.item():.3f}')
     print(f'Robust standard errors: {results.get("rob")}')
 
+def breusch_pagan_test(u_hat: np.ndarray, x: np.ndarray) -> tuple:
+    """
+    Perform the Breusch-Pagan test for homoskedasticity, see W. p. 126. 
+
+    Assumptions:
+        Constant conditional fourth moment of u_hat (homokurtosis)
+    
+    Args:
+        u_hat (np.ndarray): Residuals from the regression.
+        x (np.ndarray): Independent variables with intercept as first column. 
+    
+    Returns:
+        tuple: Returns the Breusch-Pagan test statistic and p-value.
+    """
+
+    assert np.any(np.all(x == 1, axis=0)), "The matrix x must include a constant (intercept) column."
+
+    # 1. create the auxiliary regression by regressing squared residuals on x
+    u_hat_squared = u_hat**2
+    N, K = x.shape
+    
+    results = estimate(u_hat_squared, 
+                       x, 
+                       robust = False) # assumption
+    
+    # 2. calculate Breusch-Pagan statistic
+    R2 = results['R2']
+    bp_stat = R2 * N 
+
+    # 3. calculate the p-value with chi-square distribution with df = K - 1
+    p_value = 1 - chi2.cdf(bp_stat, df= K - 1)
+    
+    return bp_stat, p_value
+
+
 # def remove_zero_columns(x, label_x):
 #     """
 #     The function removes columns from a matrix that are all zeros and returns the updated matrix and
