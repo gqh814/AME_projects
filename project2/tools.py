@@ -309,157 +309,118 @@ def print_table(
         print(f'\u03bb = {_lambda.item():.3f}')
     print(f'Robust standard errors: {results.get("rob")}')
 
-def strict_exogeneity_test(y:np.array, X:np.array, 
-                           i_index:int, N:int, T:int, 
-                           with_in_trans:bool=False,
-                           robust:bool=True):
+def breusch_pagan_test(u_hat: np.ndarray, x: np.ndarray) -> tuple:
     """
-    Runs the regression of y on X but with the i-th column of X leaded by one time period.
-    The test is a strict exogeneity test of the i-th variable in X.
+    Perform the Breusch-Pagan test for homoskedasticity, see W. p. 126. 
 
+    Assumptions:
+        Constant conditional fourth moment of u_hat (homokurtosis)
+    
     Args:
-        y (np.array): Dependent variable
-        X (np.array): Independent variables
-        i_index (int): Index of the variable in X to test for strict exogeneity
-        N (int): Number of individuals
-        T (int): Number of time periods
-        with_in_transformation (bool): Whether to within transform the data
-    Returns: 
-        dict: Results of the regression
+        u_hat (np.ndarray): Residuals from the regression.
+        x (np.ndarray): Independent variables with intercept as first column. 
+    
+    Returns:
+        tuple: Returns the Breusch-Pagan test statistic and p-value.
     """
-    # Number of time periods in the lead transformation
-    T_lead = T - 1
 
-    # Lead transformation matrix and drops the first observation of each individual
-    F_T = np.hstack((np.zeros((T_lead,1)),np.identity(T_lead))) 
+    assert np.any(np.all(x == 1, axis=0)), "The matrix x must include a constant (intercept) column."
 
-    # Identity matrix with one less column and row due to the lead transformation
-    I_T = np.hstack((np.identity(T_lead),np.zeros((T_lead,1)))) 
+    # 1. create the auxiliary regression by regressing squared residuals on x
+    u_hat_squared = u_hat**2
+    N, K = x.shape
+    
+    results = estimate(u_hat_squared, 
+                       x, 
+                       robust = False) # assumption
+    
+    # 2. calculate Breusch-Pagan statistic
+    R2 = results['R2']
+    bp_stat = R2 * N 
 
-    # create exogenous variables: one leaded of the x-variable and all exogenous variables
-    x_lead = perm(F_T, X[:, i_index].reshape(-1, 1))
-    x_exo = perm(I_T, X)
+    # 3. calculate the p-value with chi-square distribution with df = K - 1
+    p_value = 1 - chi2.cdf(bp_stat, df= K - 1)
+    
+    return bp_stat, p_value
 
-    # Stack the exogenous variables
-    x_exo = np.hstack((x_exo, x_lead))
 
-    # remove one time period from the dependent variable
-    y_exo = perm(I_T, y)
+# def remove_zero_columns(x, label_x):
+#     """
+#     The function removes columns from a matrix that are all zeros and returns the updated matrix and
+#     corresponding labels.
+    
+#     Args:
+#       x: The parameter `x` is a numpy array representing a matrix with columns that may contain zeros.
+#       label_x: The parameter `label_x` is a list that contains the labels for each column in the input
+#     array `x`.
+    
+#     Returns:
+#       x_nonzero: numpy array of x with columns that are all zeros removed.
+#       label_nonzero: list of labels for each column in x_nonzero.
+#     """
+    
+#     # Find the columns that are not all close to zeros
+#     nonzero_cols = ~np.all(np.isclose(x,0), axis=0)
+    
+#     # Remove the columns that are all zeros
+#     x_nonzero = x[:, nonzero_cols]
+    
+#     # Get the labels for the columns that are not all zeros
+#     label_nonzero = [label_x[i] for i in range(len(label_x)) if nonzero_cols[i]]
+#     return x_nonzero, label_nonzero
 
-    if with_in_trans: # Within transform the data
-        Q_T = demeaning_matrix(T_lead)
-        yw_exo = perm(Q_T, y_exo)
-        xw_exo = perm(Q_T, x_exo)
-    else: 
-        yw_exo = y_exo[:]
-        xw_exo = x_exo[:]
+# def demeaning_matrix(T:int):
+#     """ create transformation matrix for within transformation to demean the data.
+#     Args:   
+#         T (int): Number of time periods    
+#     Returns:
+#         np.ndarray: T x T matrix
+#     """
+#     Q_T =  np.eye(T) - np.ones((T,T))/T
+#     return Q_T
 
-    return estimate(yw_exo, xw_exo, transform='fe', T=T_lead,robust=robust)
+# def fd_matrix(T:int):
+#     """ create transformation matrix for first-difference transformation of the data.
+#     Args:
+#         T (int): Number of time periods
+#     Returns:
+#         np.ndarray: (T-1)xT matrix
+#     """
+#     # Initialize a (T-1) x T matrix filled with zeros
+#     D_T = np.zeros((T-1, T))
+    
+#     # Fill the matrix according to the first-difference structure
+#     for i in range(T-1):
+#         D_T[i, i] = -1
+#         D_T[i, i+1] = 1
+    
+#     return D_T #(T-1)xT
 
-def serial_corr(u_hat:np.array, T:int, robust:bool=False):
-    """ Runs the regression of the resiudals on its lagged value. 
-        Above regression can be used to determine serial correlation in FE or FD models.
+# def perm(Q_T: np.ndarray, A: np.ndarray) -> np.ndarray:
+#     """Takes a transformation matrix and performs the transformation on 
+#     the given vector or matrix.
+
+#     Args:
+#         Q_T (np.ndarray): The transformation matrix. Needs to have the same
+#         dimensions as number of years a person is in the sample.
         
-        Args:
-            u_hat (np.array): Residuals from the regression
-            T (int): Number of time periods
-            robust (bool): Whether to use robust standard errors
-        Returns:
-            dict: Results of the regression
-        """
-    # Create a lag transformation matrix
-    L_T = np.hstack((np.identity(T-1),np.zeros((T-1,1))))
-    
-    # Lag residuals
-    e_l = perm(L_T, u_hat)
+#         A (np.ndarray): The vector or matrix that is to be transformed. Has
+#         to be a 2d array.
 
-    # Create a transformation matrix that removes the first observation of each individual
-    I_T = np.hstack((np.zeros((T-1,1)),np.identity(T-1)))
-    
-    # Remove first observation of each individual
-    e = perm(I_T, u_hat)
-    
-    # Calculate the serial correlation
-    return estimate(e, e_l, transform='', T=T,robust=robust)
+#     Returns:
+#         np.array: Returns the transformed vector or matrix.
+#     """
+#     # We can infer t from the shape of the transformation matrix.
+#     M,T = Q_T.shape 
+#     N = int(A.shape[0]/T)
+#     K = A.shape[1]
 
-def remove_zero_columns(x, label_x):
-    """
-    The function removes columns from a matrix that are all zeros and returns the updated matrix and
-    corresponding labels.
+#     # initialize output 
+#     Z = np.empty((M*N, K))
     
-    Args:
-      x: The parameter `x` is a numpy array representing a matrix with columns that may contain zeros.
-      label_x: The parameter `label_x` is a list that contains the labels for each column in the input
-    array `x`.
-    
-    Returns:
-      x_nonzero: numpy array of x with columns that are all zeros removed.
-      label_nonzero: list of labels for each column in x_nonzero.
-    """
-    
-    # Find the columns that are not all close to zeros
-    nonzero_cols = ~np.all(np.isclose(x,0), axis=0)
-    
-    # Remove the columns that are all zeros
-    x_nonzero = x[:, nonzero_cols]
-    
-    # Get the labels for the columns that are not all zeros
-    label_nonzero = [label_x[i] for i in range(len(label_x)) if nonzero_cols[i]]
-    return x_nonzero, label_nonzero
+#     for i in range(N): 
+#         ii_A = slice(i*T, (i+1)*T)
+#         ii_Z = slice(i*M, (i+1)*M)
+#         Z[ii_Z, :] = Q_T @ A[ii_A, :]
 
-
-def demeaning_matrix(T:int):
-    """ create transformation matrix for within transformation to demean the data.
-    Args:   
-        T (int): Number of time periods    
-    Returns:
-        np.ndarray: T x T matrix
-    """
-    Q_T =  np.eye(T) - np.ones((T,T))/T
-    return Q_T
-
-def fd_matrix(T:int):
-    """ create transformation matrix for first-difference transformation of the data.
-    Args:
-        T (int): Number of time periods
-    Returns:
-        np.ndarray: (T-1)xT matrix
-    """
-    # Initialize a (T-1) x T matrix filled with zeros
-    D_T = np.zeros((T-1, T))
-    
-    # Fill the matrix according to the first-difference structure
-    for i in range(T-1):
-        D_T[i, i] = -1
-        D_T[i, i+1] = 1
-    
-    return D_T #(T-1)xT
-
-def perm(Q_T: np.ndarray, A: np.ndarray) -> np.ndarray:
-    """Takes a transformation matrix and performs the transformation on 
-    the given vector or matrix.
-
-    Args:
-        Q_T (np.ndarray): The transformation matrix. Needs to have the same
-        dimensions as number of years a person is in the sample.
-        
-        A (np.ndarray): The vector or matrix that is to be transformed. Has
-        to be a 2d array.
-
-    Returns:
-        np.array: Returns the transformed vector or matrix.
-    """
-    # We can infer t from the shape of the transformation matrix.
-    M,T = Q_T.shape 
-    N = int(A.shape[0]/T)
-    K = A.shape[1]
-
-    # initialize output 
-    Z = np.empty((M*N, K))
-    
-    for i in range(N): 
-        ii_A = slice(i*T, (i+1)*T)
-        ii_Z = slice(i*M, (i+1)*M)
-        Z[ii_Z, :] = Q_T @ A[ii_A, :]
-
-    return Z
+#     return Z
