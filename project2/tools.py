@@ -100,7 +100,9 @@ def plot_lasso_path(penalty_grid, coefs, legends, vlines: dict = None):
     if vlines is not None:
         for name, penalty in vlines.items():
             ax.axvline(x=penalty, linestyle='--', color='grey')
-            plt.text(penalty,0.9,name,rotation=90)
+            plt.text(penalty,
+                     ax.get_ylim()[1]*0.85,
+                     name,rotation=90)
 
     # Display plot
     plt.show()
