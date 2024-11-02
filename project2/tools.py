@@ -3,7 +3,108 @@ import numpy as np
 from numpy import linalg as la
 from tabulate import tabulate
 from scipy.stats import chi2, norm
+from matplotlib import pyplot as plt
+from sklearn.linear_model import Lasso
 
+class penalty_term:
+    def __init__(self, X:np.ndarray, y:np.ndarray, alpha:float, c:float, n:int, p:int):
+        self.n = n
+        self.p = p
+        self.X = X
+        self.y = y
+        self.alpha = alpha
+        self.c = c
+    
+    def _max_term(self, func:callable, **kwargs):
+        # calculate the max term
+        max_term = {}
+        for j in range(self.X.shape[1]):
+            max_term[j] = func(self.X[:,j], **kwargs)
+        return max(max_term.values())
+    
+    def _scale_factor(self, ):
+        return 2*self.c/np.sqrt(self.n)
+    
+    def _quantile_factor(self, ):
+        return norm.ppf(1-self.alpha/(2*self.p))
+
+    def brt_rule(self, sigma:float):
+        scale = self._scale_factor() * sigma
+        quantile = self._quantile_factor()
+        max_term = self._max_term(lambda x: np.sqrt(np.mean(x**2)))
+        return scale*quantile*max_term
+    def bcch_pilot_rule(self):
+        scale = self._scale_factor()
+        quantile = self._quantile_factor()
+        max_term = self._max_term(func=(lambda x, y: np.sqrt(np.mean((y-y.mean())**2*x**2))), y=self.y)
+        return scale*quantile*max_term
+    def bcch_rule(self, residuals:np.ndarray):
+        scale = self._scale_factor() # scale factor
+        quantile = self._quantile_factor()
+        max_term = self._max_term(func=(lambda x, y: np.sqrt(np.mean((y-y.mean())**2*x**2))), y=residuals)
+        return scale*quantile*max_term
+
+class MyLasso_123:
+    def __init__(self, X, y, xlabels:list=None, max_iter:int=10_000, tol:float=1e-4, fit_intercept:bool=False):
+        self.X = X
+        self.xlabels = xlabels
+        self.y = y
+        self.max_iter = max_iter
+        self.tol = tol
+        self.fit_intercept = fit_intercept
+    
+    def lasso(self, lambda_):
+        """ """
+        # Lasso regression
+        lasso = Lasso(alpha=lambda_, max_iter=self.max_iter,fit_intercept=self.fit_intercept, tol=self.tol)
+        fit = lasso.fit(self.X, self.y)
+        fit.feature_names_in_ = self.xlabels
+        return fit
+    
+def plot_lasso_path(penalty_grid, coefs, legends, vlines: dict = None):
+    """
+    Plots the coefficients as a function of the penalty parameter for Lasso regression.
+
+    Parameters:
+    penalty_grid (array-like): The penalty parameter values.
+    coefs (array-like): The estimated coefficients for each penalty value.
+    legends (list): The labels for each coefficient estimate.
+    vlines (dict, optional): A dictionary of vertical lines to add to the plot. The keys are the names of the lines and the values are the penalty values where the lines should be drawn.
+    
+    """
+    # Initiate figure 
+    fig, ax = plt.subplots()
+
+    # Plot coefficients as a function of the penalty parameter
+    ax.plot(penalty_grid, coefs)
+
+    # Set log scale for the x-axis
+    ax.set_xscale('log')
+
+    # Add labels
+    plt.xlabel('Penalty, $\lambda$')
+    plt.ylabel(r'Estimates, $\widehat{\beta}_j(\lambda)$')
+    plt.title('Lasso Path')
+
+    # remove top and right spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+    # Add legends
+    # lgd=ax.legend(legends,loc=(1.04,0))
+
+    # set x lim 
+    ax.set_xlim([min(penalty_grid), max(penalty_grid)])
+    
+    # Add vertical lines
+    if vlines is not None:
+        for name, penalty in vlines.items():
+            ax.axvline(x=penalty, linestyle='--', color='grey')
+            plt.text(penalty,0.9,name,rotation=90)
+
+    # Display plot
+    plt.show()
+    plt.close()
 
 def estimate( 
         y: np.ndarray, 
