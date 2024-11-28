@@ -96,3 +96,16 @@ def sim_data(theta: np.ndarray, N:int):
 
     # 3. return 
     return y, x
+
+def partial_effect(x, theta, k):
+    x_k1 = x.copy()
+    x_k1[:, k] = 1  # Keep everythin the same, but change foreign to 1 for all obs. 
+
+    # evaluate G at the two different "x beta"s
+    me_foreign_lg = logit.G(x_me2@b_lg) - logit.G(x_me@b_lg)
+
+
+    pd.DataFrame([ols_results['b_hat'][k], 
+                me_foreign_pr[0], # assuming me_foregin_pr is an array, otherwise remove "[0]"
+                me_foreign_lg[0]],
+                index=['OLS', 'Probit', 'Logit'], columns=[f'Marg. Eff.: {x_lab[k]}']).round(4)
