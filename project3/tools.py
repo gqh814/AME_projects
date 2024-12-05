@@ -97,15 +97,32 @@ def sim_data(theta: np.ndarray, N:int):
     # 3. return 
     return y, x
 
-def partial_effect(x, theta, k):
-    x_k1 = x.copy()
-    x_k1[:, k] = 1  # Keep everythin the same, but change foreign to 1 for all obs. 
 
-    # evaluate G at the two different "x beta"s
-    me_foreign_lg = logit.G(x_me2@b_lg) - logit.G(x_me@b_lg)
+def average_partial_effect(x_i, betas, cov_matrix, k=1):
+    '''
+    Compute the average partial effect of a binary variable in the logit model.
+    '''
+    # Get the observations where the binary variable is 0 and 1
+    x_ij = x_i[np.where(x_i[:, k]==0),:].reshape(-1, x_i.shape[1])
+    x_i_mj = x_ij.copy()
+    x_i_mj[:, k] = 1  # Keep everythin the same, but change race to 1 for all obs. 
 
-
-    pd.DataFrame([ols_results['b_hat'][k], 
-                me_foreign_pr[0], # assuming me_foregin_pr is an array, otherwise remove "[0]"
-                me_foreign_lg[0]],
-                index=['OLS', 'Probit', 'Logit'], columns=[f'Marg. Eff.: {x_lab[k]}']).round(4)
+    # calculate the partial effect for each observation and the average partial effect
+    gx0 = 1/(1+np.exp(-(x_ij @ betas))) 
+    gx1 = 1/(1+np.exp(-(x_i_mj @ betas)))
+    pe_i =  gx1 - gx0
+    ape = np.mean(pe_i)
+    sample_std = np.std(pe_i)
+    
+    # Compute the derivate of g(x) with respect to beta
+    g_x0_prime = gx0*(1-gx0)
+    g_x1_prime = gx1*(1-gx1)
+    
+    # Compute the gradient of the average partial effect
+    grad_i = g_x0_prime[:, None] * x_i_mj - g_x1_prime[:, None] * x_ij
+    grad = np.mean(grad_i, axis=0)
+    
+    # Compute the covariance matrix of the parameter estimates
+    pe_cov_matrix = grad[:,None].T @ cov_matrix @ grad[:,None]
+    
+    return ape, pe_cov_matrix, sample_std
