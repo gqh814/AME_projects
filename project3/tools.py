@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np, pandas as pd
 from numpy import random
 from numpy import linalg as la
 from scipy import optimize
@@ -126,3 +126,111 @@ def average_partial_effect(x_i, betas, cov_matrix, k=1):
     pe_cov_matrix = grad[:,None].T @ cov_matrix @ grad[:,None]
     
     return ape, pe_cov_matrix, sample_std
+
+def dataframe_to_latex_table(df, caption='', label=''):
+    """
+    Converts a pandas DataFrame with MultiIndex (sRace, Model, Tipo) and regressors as columns
+    to a LaTeX table that exactly mirrors the DataFrame's structure.
+    
+    Rows with standard deviations (Tipo = 'Std') are shown in parentheses directly below coefficients.
+
+    Parameters:
+    - df: pandas DataFrame with MultiIndex (sRace, Model, Tipo).
+    - caption: str. Caption for the LaTeX table.
+    - label: str. Label for the LaTeX table.
+
+    Returns:
+    - str: LaTeX table as a string.
+    """
+    # Start LaTeX table
+    col_format = 'l l' + ' c' * len(df.columns)  # First column for index, others for regressors
+    latex = '\\begin{table}[H]\n'
+    latex += '    \\centering\n'
+    latex += f'    \\begin{{tabular}}{{{col_format}}}\n'
+    latex += '\\toprule\n'
+
+    # Header row: Regressors
+    header = ' & ' + ' & '.join([f'\\textbf{{{col}}}' for col in df.columns]) + ' \\\\\n'
+    latex += header
+    latex += '\\midrule\n'
+
+    # Iterate over `sRace` and `Model` in MultiIndex
+    current_sRace = None
+    for (sRace, model, tipo), row in df.iterrows():
+        if current_sRace != sRace:
+            if current_sRace is not None:
+                latex += '\\midrule\n'  # Add a horizontal line between groups
+            latex += f'{sRace} '
+            current_sRace = sRace
+
+        # Format the `Model` and row values
+        if tipo == 'Coeff':
+            latex += f'& {model:<15} & ' + ' & '.join([f"${v:.3f}$" if pd.notna(v) else '' for v in row]) + ' \\\\\n'
+        elif tipo == 'Std':
+            latex += f'& {"":<15} & ' + ' & '.join([f"(${v:.3f})$" if pd.notna(v) else '' for v in row]) + ' \\\\\n'
+
+    # End LaTeX table
+    latex += '\\bottomrule\n'
+    latex += '    \\end{tabular}\n'
+    latex += f'    \\caption{{{caption}}}\n'
+    latex += f'    \\label{{{label}}}\n'
+    latex += '\\end{table}\n'
+
+    return latex
+
+def dataframe_to_latex_table_multirow(df, caption='', label=''):
+    """
+    Converts a pandas DataFrame with MultiIndex (sRace, Model, Tipo) and regressors as columns
+    to a LaTeX table where coefficients and their standard deviations share a row using \multirow.
+
+    Parameters:
+    - df: pandas DataFrame with MultiIndex (sRace, Model, Tipo).
+    - caption: str. Caption for the LaTeX table.
+    - label: str. Label for the LaTeX table.
+
+    Returns:
+    - str: LaTeX table as a string.
+    """
+    # Start LaTeX table
+    col_format = 'l l' + ' c' * len(df.columns)  # First two columns for indices, others for regressors
+    latex = '\\begin{table}[H]\n'
+    latex += '    \\centering\n'
+    latex += f'    \\begin{{tabular}}{{{col_format}}}\n'
+    latex += '\\toprule\n'
+
+    # Header row: Regressors
+    header = ' & ' + ' & '.join([f'\\textbf{{{col}}}' for col in df.columns]) + ' \\\\\n'
+    latex += header
+    latex += '\\midrule\n'
+
+    # Iterate over `sRace` and `Model` in MultiIndex
+    current_sRace = None
+    for sRace, group in df.groupby(level='sRace'):
+        if current_sRace != sRace:
+            if current_sRace is not None:
+                latex += '\\midrule\n'  # Add a horizontal line between groups
+            current_sRace = sRace
+
+        for i, (model, model_group) in enumerate(group.groupby(level='Model')):
+            latex_race = ' ' if i > 0 else f'\\textbf{{{current_sRace}}} '  # Add a header for the new group
+            # Extract coefficient and standard deviation rows for the model
+            coeff_row = model_group.xs('Coeff', level='Tipo')
+            std_row = model_group.xs('Std', level='Tipo')
+
+            # Start the row with \multirow for the Model
+            model = '\\vspace{3pt} ' + model
+            latex += f'\\multirow{{2}}{{*}} {{{model}}} &'
+            latex += ' & '.join([f"${v:.3f}$" if pd.notna(v) else '' for v in coeff_row.values[0]]) + '\\vspace{-3pt} \\\\\n'
+
+            # Add the second row for the standard deviation
+            latex += f' &'
+            latex += ' & '.join([f"(${v:.3f})$" if pd.notna(v) else '' for v in std_row.values[0]]) + ' \\\\\n'
+
+    # End LaTeX table
+    latex += '\\bottomrule\n'
+    latex += '    \\end{tabular}\n'
+    latex += f'    \\caption{{{caption}}}\n'
+    latex += f'    \\label{{{label}}}\n'
+    latex += '\\end{table}\n'
+
+    return latex
