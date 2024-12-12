@@ -178,7 +178,7 @@ def dataframe_to_latex_table(df, caption='', label=''):
 
     return latex
 
-def dataframe_to_latex_table_multirow(df, caption='', label=''):
+def dataframe_to_latex_table_multirow(df, caption='', label='', std=False, format_func=None, prime_vspace=6, sec_vspace=-3):
     """
     Converts a pandas DataFrame with MultiIndex (sRace, Model, Tipo) and regressors as columns
     to a LaTeX table where coefficients and their standard deviations share a row using \multirow.
@@ -191,6 +191,9 @@ def dataframe_to_latex_table_multirow(df, caption='', label=''):
     Returns:
     - str: LaTeX table as a string.
     """
+    if format_func is None:
+        format_func = lambda x: f"${x:.3f}$" if pd.notna(x) else ''
+
     # Start LaTeX table
     col_format = 'l l' + ' c' * len(df.columns)  # First two columns for indices, others for regressors
     latex = '\\begin{table}[H]\n'
@@ -199,7 +202,7 @@ def dataframe_to_latex_table_multirow(df, caption='', label=''):
     latex += '\\toprule\n'
 
     # Header row: Regressors
-    header = ' & ' + ' & '.join([f'\\textbf{{{col}}}' for col in df.columns]) + ' \\\\\n'
+    header = ' & & ' + ' & '.join([f'\\textbf{{{col}}}' for col in df.columns]) + ' \\\\\n'
     latex += header
     latex += '\\midrule\n'
 
@@ -210,21 +213,27 @@ def dataframe_to_latex_table_multirow(df, caption='', label=''):
             if current_sRace is not None:
                 latex += '\\midrule\n'  # Add a horizontal line between groups
             current_sRace = sRace
+            no_of_tot_rows = len(group.index)
+            latex += f"\\multirow{{{no_of_tot_rows}}}{{*}} {{\\vspace{{{prime_vspace}pt}}\\textbf{{{sRace}}}}} "
 
         for i, (model, model_group) in enumerate(group.groupby(level='Model')):
-            latex_race = ' ' if i > 0 else f'\\textbf{{{current_sRace}}} '  # Add a header for the new group
+            
             # Extract coefficient and standard deviation rows for the model
             coeff_row = model_group.xs('Coeff', level='Tipo')
-            std_row = model_group.xs('Std', level='Tipo')
 
             # Start the row with \multirow for the Model
-            model = '\\vspace{3pt} ' + model
-            latex += f'\\multirow{{2}}{{*}} {{{model}}} &'
-            latex += ' & '.join([f"${v:.3f}$" if pd.notna(v) else '' for v in coeff_row.values[0]]) + '\\vspace{-3pt} \\\\\n'
+            model = f'\\vspace{{{-sec_vspace}pt}} ' + model
+            if std:
+                latex += f'& \\multirow{{2}}{{*}} {{{model}}} &'
+            else: 
+                latex += f'& {model} &'
+            latex += ' & '.join([format_func(v) for v in coeff_row.values[0]]) + f'\\vspace{{{sec_vspace} pt}} \\\\\n'
 
-            # Add the second row for the standard deviation
-            latex += f' &'
-            latex += ' & '.join([f"(${v:.3f})$" if pd.notna(v) else '' for v in std_row.values[0]]) + ' \\\\\n'
+            if std:
+                std_row = model_group.xs('Std', level='Tipo')
+                # Add the second row for the standard deviation
+                latex += f' & &'
+                latex += ' & '.join([format_func(v) for v in std_row.values[0]]) + ' \\\\\n'
 
     # End LaTeX table
     latex += '\\bottomrule\n'

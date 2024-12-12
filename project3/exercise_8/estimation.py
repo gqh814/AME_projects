@@ -42,7 +42,8 @@ def estimate(
     Q = lambda theta: np.mean(q(theta, y, x))
 
     # call optimizer
-    result = optimize.minimize(Q, theta0, options=options, **kwargs)
+    result = optimize.minimize(Q, theta0, method='BFGS', 
+                               options=options, **kwargs)
     
     cov, se = variance(q, y, x, result, cov_type)   
 
