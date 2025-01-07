@@ -33,15 +33,17 @@ class penalty_term:
         quantile = self._quantile_factor()
         max_term = self._max_term(lambda x: np.sqrt(np.mean(x**2)))
         return scale*quantile*max_term
+    
     def bcch_pilot_rule(self):
         scale = self._scale_factor()
         quantile = self._quantile_factor()
         max_term = self._max_term(func=(lambda x, y: np.sqrt(np.mean((y-y.mean())**2*x**2))), y=self.y)
         return scale*quantile*max_term
+
     def bcch_rule(self, residuals:np.ndarray):
         scale = self._scale_factor() # scale factor
         quantile = self._quantile_factor()
-        max_term = self._max_term(func=(lambda x, y: np.sqrt(np.mean((y-y.mean())**2*x**2))), y=residuals)
+        max_term = self._max_term(func=(lambda x, y: np.sqrt(np.mean((y)**2*x**2))), y=residuals)
         return scale*quantile*max_term
 
 class MyLasso_123:
