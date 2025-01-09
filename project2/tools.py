@@ -5,6 +5,8 @@ from tabulate import tabulate
 from scipy.stats import chi2, norm
 from matplotlib import pyplot as plt
 from sklearn.linear_model import Lasso
+from cycler import cycler
+import seaborn as sns
 
 class penalty_term:
     def __init__(self, X:np.ndarray, y:np.ndarray, alpha:float, c:float, n:int, p:int):
@@ -63,7 +65,7 @@ class MyLasso_123:
         fit.feature_names_in_ = self.xlabels
         return fit
     
-def plot_lasso_path(penalty_grid, coefs, legends, vlines: dict = None):
+def plot_lasso_path(penalty_grid, coefs, legends, ax, title:str,  vlines: dict = None):
     """
     Plots the coefficients as a function of the penalty parameter for Lasso regression.
 
@@ -74,19 +76,22 @@ def plot_lasso_path(penalty_grid, coefs, legends, vlines: dict = None):
     vlines (dict, optional): A dictionary of vertical lines to add to the plot. The keys are the names of the lines and the values are the penalty values where the lines should be drawn.
     
     """
-    # Initiate figure 
-    fig, ax = plt.subplots()
+    # Define a colormap
+    colors = sns.color_palette('Set2')
+
+    # Update the default color cycle
+    plt.rcParams['axes.prop_cycle'] = cycler(color=colors)
 
     # Plot coefficients as a function of the penalty parameter
-    ax.plot(penalty_grid, coefs)
-
+    ax.plot(penalty_grid, coefs,)
+    
     # Set log scale for the x-axis
     ax.set_xscale('log')
 
     # Add labels
-    plt.xlabel('Penalty, $\lambda$')
-    plt.ylabel(r'Estimates, $\widehat{\beta}_j(\lambda)$')
-    plt.title('Lasso Path')
+    ax.set_xlabel('Penalty, $\lambda$')
+    ax.set_ylabel(r'Estimates, $\widehat{\beta}_j(\lambda)$')
+    ax.set_title(title)
 
     # remove top and right spines
     ax.spines['top'].set_visible(False)
@@ -95,6 +100,10 @@ def plot_lasso_path(penalty_grid, coefs, legends, vlines: dict = None):
     # Add legends
     # lgd=ax.legend(legends,loc=(1.04,0))
 
+    # add horizontal grid lines
+    ax.yaxis.grid(True)
+
+
     # set x lim 
     ax.set_xlim([min(penalty_grid), max(penalty_grid)])
     
@@ -102,13 +111,10 @@ def plot_lasso_path(penalty_grid, coefs, legends, vlines: dict = None):
     if vlines is not None:
         for name, penalty in vlines.items():
             ax.axvline(x=penalty, linestyle='--', color='grey')
-            plt.text(penalty,
+            ax.text(penalty,
                      ax.get_ylim()[1]*0.85,
                      name,rotation=90)
 
-    # Display plot
-    plt.show()
-    plt.close()
 
 def estimate( 
         y: np.ndarray, 
