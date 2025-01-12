@@ -34,7 +34,6 @@ def starting_values(y,x):
     Returns
         theta: K+1 array, where theta[:K] are betas, and theta[-1] is sigma (not squared)
     '''
-    print("HOOL")
     N,K = x.shape
     b_ols = la.inv(x.T@x) @ (x.T@y) 
     res = y - x@b_ols
@@ -56,10 +55,8 @@ def predict(theta, x):
     sigma = theta[2]
     
     xb = (x@beta)
-    print(xb.shape)
     E = (1-norm.cdf((xb+mu)/sigma))*(xb+mu) - sigma*norm.pdf((xb+mu)/sigma)
-        
-
+    
     return E
 
 # def sim_data(theta, N:int): 
